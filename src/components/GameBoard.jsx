@@ -15,27 +15,48 @@ export default function GameBoard() {
   const [bombAmount, setBombAmount] = useState(null);
   const [flagUsed, setFlagUsed] = useState(0);
   const [special, setSpecial] = useState(false);
+  const [gameStatus, setGameStatus] = useState(null);
+  const [score, setScore] = useState(0);
+
+  const endGame = (status) => {
+    setGameStatus(status);
+    const allTiles = new Set();
+    for (let r = 0; r < dimension; r++) {
+      for (let c = 0; c < dimension; c++) {
+        allTiles.add(`${r},${c}`);
+      }
+    }
+    setRevealed(allTiles);
+  };
 
   const handleSizeChange = (e, newSize) => {
+    setGameStatus(null);
     setDimension(newSize);
+    setRevealed(new Set());
+    setMarked(new Set());
+    setFlagUsed(0);
     setBoard(
       Array(newSize)
         .fill()
         .map(() => Array(newSize).fill(0))
     );
-    setRevealed(new Set());
-    setMarked(new Set());
-    setBombLocation([]);
+    bombPlacement()
     if (e.target.name === "fame") {
-      return setSpecial(true);
+      setSpecial(true);
+    } else {
+      setSpecial(false);
     }
-    setSpecial(false)
   };
-
+  useEffect(() => {
+    if (score === bombAmount && revealed.size === (dimension*dimension)-bombAmount) {
+      endGame("win");
+    }
+  }, [score, revealed, bombAmount, dimension]);
   const hdlOnClick = (e, row, col) => {
     const isMarked = marked.has(`${row},${col}`);
     if (e.button === 1) {
       hdlFlagPlacement(row, col);
+      console.log(score, bombAmount);
     } else if (e.button === 0) {
       if (isMarked) {
         return;
@@ -47,6 +68,9 @@ export default function GameBoard() {
   const hdlFlagPlacement = (row, col) => {
     const key = `${row},${col}`;
     if (marked.has(key)) {
+      if (isBomb(row, col)) {
+        setScore((prv) => prv - 1);
+      }
       setFlagUsed((prv) => prv - 1);
       setMarked((prv) => {
         const newMark = new Set(prv);
@@ -56,6 +80,9 @@ export default function GameBoard() {
     } else {
       if (flagUsed + 1 > bombAmount) {
         return;
+      }
+      if (isBomb(row, col)) {
+        setScore((prv) => prv + 1);
       }
       setFlagUsed((prv) => prv + 1);
       setMarked((prv) => {
@@ -68,7 +95,8 @@ export default function GameBoard() {
 
   const hdlReveal = (row, col) => {
     if (isBomb(row, col)) {
-      alert("you lose");
+      endGame("lose");
+      return;
     }
     const openedTile = bfs(row, col);
     setRevealed((prev) => {
@@ -76,6 +104,7 @@ export default function GameBoard() {
       openedTile.forEach(([r, c]) => newRevealed.add(`${r},${c}`));
       return newRevealed;
     });
+    
   };
 
   const bfs = (r, c) => {
@@ -130,10 +159,10 @@ export default function GameBoard() {
     const randomizedNumber = () => Math.floor(Math.random() * dimension);
     let bombLeft = bombCount;
     let bombSet = new Set();
-    
+
     if (special) {
       bombSet = heartMatrix();
-      setBombAmount(93)
+      setBombAmount(93);
     } else {
       setBombAmount(bombLeft);
 
@@ -157,6 +186,13 @@ export default function GameBoard() {
     });
     setBombLocation(generatedBomb);
     return generatedBomb;
+  };
+
+  const hdlResetGame = (e) => {
+    handleSizeChange(e, dimension);
+    setScore(0)
+    setGameStatus(null);
+    bombPlacement();
   };
 
   const numTagPlacement = (row, col) => {
@@ -185,11 +221,11 @@ export default function GameBoard() {
         e.preventDefault();
       }
     };
-  
-    document.addEventListener('mousedown', preventMiddleClick);
-    
+
+    document.addEventListener("mousedown", preventMiddleClick);
+
     return () => {
-      document.removeEventListener('mousedown', preventMiddleClick);
+      document.removeEventListener("mousedown", preventMiddleClick);
     };
   }, []);
 
@@ -249,6 +285,7 @@ export default function GameBoard() {
               key={`${rowIndex}-${colIndex}`}
               rowIndex={rowIndex}
               colIndex={colIndex}
+              gameStatus={gameStatus}
             />
           ))
         )}
@@ -256,6 +293,38 @@ export default function GameBoard() {
       <div className="fixed bottom-4 right-4 text-4xl bg-white bg-opacity-25 rounded-full p-4  text-white">
         🚩: {flagUsed}/{bombAmount}
       </div>
+      {gameStatus === "win" && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-8 rounded-lg text-center">
+            <h2 className="text-2xl font-bold text-green-600 mb-4">
+              Congratulations!
+            </h2>
+            <p className="text-gray-700 mb-4">You've won the game!</p>
+            <button
+              className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+              onClick={hdlResetGame}
+            >
+              Play Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lose Modal */}
+      {gameStatus === "lose" && (
+        <div className="fixed z-100 inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-8 rounded-lg text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">Game Over!</h2>
+            <p className="text-gray-700 mb-4">Better luck next time!</p>
+            <button
+              className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+              onClick={hdlResetGame}
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
